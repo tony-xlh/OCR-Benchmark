@@ -277,11 +277,16 @@ def main():
           f"{agg['text_cer_reading_order']*100:>7.1f}% {agg['text_wer_reading_order']*100:>7.1f}% "
           f"{agg['text_cer_naive']*100:>9.1f}% {agg['text_wer_naive']*100:>9.1f}%")
 
+    diacritics_note = ("  (low: the engine drops Arabic diacritics)"
+                       if agg['recognition_norm'] - agg['recognition_exact'] > 0.15 else "")
+    order_note = ("  (large gap = boxes must be re-sorted into reading order)"
+                  if agg['text_wer_naive'] - agg['text_wer_reading_order'] > 0.10 else "")
+
     print("\n===== Summary =====")
     print(f"Word detection (GT word with a box at IoU>={iou_thr}): "
           f"{agg['detection_recall']*100:.1f}%")
     print(f"Word recognition, exact as returned:            {agg['recognition_exact']*100:.1f}%"
-          + ("  (low: WinRT drops Arabic diacritics)" if lang == "ar" else ""))
+          + diacritics_note)
     print(f"Word recognition, after diacritic normalization:{agg['recognition_norm']*100:.1f}%")
     print(f"Char-level CER on matched words (normalized):   {agg['char_cer_norm']*100:.1f}%")
     print(f"Mean best box IoU:                              {agg['mean_best_iou']*100:.1f}%")
@@ -289,7 +294,7 @@ def main():
           f"{agg['text_cer_reading_order']*100:.1f}% / {agg['text_wer_reading_order']*100:.1f}%")
     print(f"Text CER / WER in returned order (normalized):  "
           f"{agg['text_cer_naive']*100:.1f}% / {agg['text_wer_naive']*100:.1f}%"
-          + ("  (large gap = boxes must be re-sorted into reading order)" if lang == "ar" else ""))
+          + order_note)
 
     report = {
         "engine": engine,
