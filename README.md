@@ -41,7 +41,8 @@ text use the same exact-pixel measurement.
 ├── arabic_ocr_web_generator.py   # backward-compatible shim (old name, still works)
 ├── evaluate_ocr.py               # CER / WER / IoU evaluator
 ├── run_eval_tesseract.py         # end-to-end Tesseract evaluation runner
-├── eval_winrt_ocr.py             # evaluate a Windows.Media.Ocr result (ImageTrans .itp)
+├── eval_winrt_ocr.py             # evaluate an ImageTrans .itp OCR result (WinRT / macOS Vision)
+├── make_report_html.py           # build a bilingual HTML report from an eval report JSON
 └── ocr_dataset_<lang>/           # generated dataset (gitignored), one dir per language
     ├── images/                   #   PNG pages
     ├── ground_truth/             #   JSON ground truth
@@ -123,21 +124,50 @@ The report is written to `<dataset>/eval_report.json`.
 > Note: for Chinese, CER is the meaningful metric — WER splits on spaces, and
 > Chinese text has no spaces between words.
 
-### 3. Evaluate a Windows.Media.Ocr result (ImageTrans .itp project)
+### 3. Evaluate an OCR engine result (ImageTrans .itp project)
 
-If you ran OCR on the generated images with a Windows.Media.Ocr-based ImageTrans
-plugin (engine name `word level (WinRT)`), save the project and evaluate it:
+If you ran OCR on the generated images inside ImageTrans — with a
+Windows.Media.Ocr plugin (engine `word level (WinRT)`) or the macOS Vision
+plugin (engine `word level (mac)`) — save the project and evaluate it:
 
 ```bash
+# Windows.Media.Ocr result
 python eval_winrt_ocr.py --itp winrt.itp --dataset ./ocr_dataset_ar
+# macOS Vision result
+python eval_winrt_ocr.py --itp macocr.itp --dataset ./ocr_dataset_ar \
+    --report ./ocr_dataset_ar/eval_report_mac.json
 ```
 
 The script re-sorts the OCR word boxes into reading order from their geometry
-(required for Arabic RTL), strips Arabic diacritics (the WinRT engine cannot
-output harakat) and reports word detection, word/char recognition accuracy and
-text CER/WER — per image, aggregated, and as `eval_report_winrt.json`.
-Language is auto-detected from the dataset metadata (`--lang ar|zh|en` to
-override).
+(required for Arabic RTL), strips Arabic diacritics (harakat) and reports word
+detection, word/char recognition accuracy and text CER/WER — per image,
+aggregated, and as a JSON report. Language is auto-detected from the dataset
+metadata (`--lang ar|zh|en` to override). Findings so far:
+
+- **Windows.Media.Ocr** recognizes words accurately (char CER ~1.5%) but
+  **drops all diacritics** and returns the word boxes **not in reading order**
+  (naive WER ~90%) — consumers must re-sort the boxes by geometry.
+- **macOS Vision** is slightly more accurate (char CER ~0.4%), **preserves most
+  diacritics** and returns boxes **already in reading order**; its boxes are a
+  little looser (mean IoU ~65% vs ~77%).
+
+### 4. Generate a bilingual HTML report
+
+Turn an evaluation report JSON into a self-contained bilingual (中文/EN) HTML
+page with KPI tiles, bar charts, a per-image table and a plain-language
+explanation of every metric. The verdict text adapts to the engine's behaviour
+(dropped diacritics / scrambled order / loose boxes).
+
+```bash
+python make_report_html.py \
+    --report ocr_dataset_ar/eval_report_mac.json \
+    --output ocr_eval_report_mac.html \
+    --overlay macocr_visualization.png
+```
+
+Existing examples: `ocr_eval_report.html` (WinRT) and `ocr_eval_report_mac.html`
+(macOS Vision) in the repo root. Open them directly in a browser; a toggle in the
+top-right switches 中文 ⇄ English and the page follows the OS light/dark theme.
 
 ## Ground truth format
 
