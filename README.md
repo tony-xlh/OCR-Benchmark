@@ -53,9 +53,7 @@ text use the same exact-pixel measurement.
 
 - Python 3.9+
 - [Playwright](https://playwright.dev/python/) — uses the **system Edge or Chrome**
-  automatically, so **no browser download is needed**. If you must download
-  Chromium, use a mirror in China:
-  `PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright python -m playwright install chromium`
+  automatically, so **no browser download is needed**.
 - For evaluation: [Tesseract](https://github.com/tesseract-ocr/tesseract) with
   the matching `*.traineddata` (`ara`, `chi_sim`, `eng`), plus `editdistance`.
 
