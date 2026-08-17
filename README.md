@@ -41,6 +41,7 @@ text use the same exact-pixel measurement.
 ├── arabic_ocr_web_generator.py   # backward-compatible shim (old name, still works)
 ├── evaluate_ocr.py               # CER / WER / IoU evaluator
 ├── run_eval_tesseract.py         # end-to-end Tesseract evaluation runner
+├── eval_winrt_ocr.py             # evaluate a Windows.Media.Ocr result (ImageTrans .itp)
 └── ocr_dataset_<lang>/           # generated dataset (gitignored), one dir per language
     ├── images/                   #   PNG pages
     ├── ground_truth/             #   JSON ground truth
@@ -121,6 +122,22 @@ The report is written to `<dataset>/eval_report.json`.
 
 > Note: for Chinese, CER is the meaningful metric — WER splits on spaces, and
 > Chinese text has no spaces between words.
+
+### 3. Evaluate a Windows.Media.Ocr result (ImageTrans .itp project)
+
+If you ran OCR on the generated images with a Windows.Media.Ocr-based ImageTrans
+plugin (engine name `word level (WinRT)`), save the project and evaluate it:
+
+```bash
+python eval_winrt_ocr.py --itp winrt.itp --dataset ./ocr_dataset_ar
+```
+
+The script re-sorts the OCR word boxes into reading order from their geometry
+(required for Arabic RTL), strips Arabic diacritics (the WinRT engine cannot
+output harakat) and reports word detection, word/char recognition accuracy and
+text CER/WER — per image, aggregated, and as `eval_report_winrt.json`.
+Language is auto-detected from the dataset metadata (`--lang ar|zh|en` to
+override).
 
 ## Ground truth format
 
