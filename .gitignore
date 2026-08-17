@@ -9,6 +9,7 @@ env/
 # Generated datasets (output of the scripts)
 arabic_ocr_dataset/
 arabic_dataset/
+ocr_dataset_*/
 
 # IDE / editor
 .vscode/

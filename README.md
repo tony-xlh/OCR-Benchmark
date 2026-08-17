@@ -1,38 +1,47 @@
-# Arabic OCR Dataset Generator
+# OCR Dataset Generator (Arabic / Chinese / English)
 
-Generate **Arabic OCR datasets**: real document images plus precise ground truth
-(text and word-level bounding boxes), for evaluating OCR engines.
+Generate **OCR datasets** in three languages — **Arabic** (default), **Chinese** and
+**English**: real document images plus precise ground truth (text and word-level
+bounding boxes), for evaluating OCR engines. Select the language with `--lang`.
 
 Images are rendered in a **headless browser (Playwright)** using the system
 Edge/Chrome, so Arabic shaping, ligatures, diacritics (harakat) and RTL layout
-are all rendered natively by the browser — the same way a real reader sees them.
+are rendered natively by the browser — the same way a real reader sees them.
 Word/character positions are measured with DOM `Range.getBoundingClientRect()`,
 which avoids the unreliable text layer that Word/LibreOffice PDFs produce for RTL
-Arabic (scrambled runs, lost diacritics, misplaced punctuation).
+Arabic (scrambled runs, lost diacritics, misplaced punctuation). CJK and Latin
+text use the same exact-pixel measurement.
 
 ## Features
 
 - **A4 document pages** (default): 2480×3508 px (A4 @ 300 DPI), a centered title
-  plus 8–11 vocalized Arabic paragraphs per page. Clean, no noise, no rotation.
+  plus 8–11 paragraphs per page. Clean, no noise, no rotation.
 - **Word cards** (optional): short words/phrases/sentences with optional
   augmentation (gaussian / salt & pepper / blur / rotation noise). Rotation
   transforms the GT boxes to match the rotated image.
 - **Ground truth** per sample:
-  - `text` — full page/sample text (logical order, with diacritics)
-  - `words` — word-level boxes `{text, bbox:{x,y,width,height}}` in pixel coords,
-    in RTL reading order
+  - `text` — full page/sample text (logical order)
+  - `words` — word-level boxes `{text, bbox:{x,y,width,height}}` in pixel coords.
+    For Chinese, where there are no word separators, each CJK character is a
+    token (consecutive Latin/digit runs stay grouped).
   - `characters` — per-character boxes
-- **Evaluation**: run a real OCR engine (Tesseract with `ara`) and get
-  CER / WER / word-box IoU.
+- **Language-aware rendering**: `dir` (rtl/ltr), alignment, fonts and line-height
+  are chosen per language. Font lists use Windows built-ins
+  (SimSun/SimHei/Microsoft YaHei/KaiTi/FangSong for Chinese, Arial/Times New
+  Roman/Georgia/… for English).
+- **Evaluation**: run a real OCR engine (Tesseract) and get CER / WER / word-box
+  IoU. The language is auto-detected from the dataset metadata
+  (`ara` / `chi_sim` / `eng`).
 
 ## Project layout
 
 ```
 .
-├── arabic_ocr_web_generator.py   # dataset generator
+├── ocr_web_generator.py          # multi-language dataset generator (--lang ar|zh|en)
+├── arabic_ocr_web_generator.py   # backward-compatible shim (old name, still works)
 ├── evaluate_ocr.py               # CER / WER / IoU evaluator
 ├── run_eval_tesseract.py         # end-to-end Tesseract evaluation runner
-└── arabic_ocr_dataset/           # generated dataset (gitignored)
+└── ocr_dataset_<lang>/           # generated dataset (gitignored), one dir per language
     ├── images/                   #   PNG pages
     ├── ground_truth/             #   JSON ground truth
     ├── metadata.json
@@ -47,7 +56,7 @@ Arabic (scrambled runs, lost diacritics, misplaced punctuation).
   Chromium, use a mirror in China:
   `PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright python -m playwright install chromium`
 - For evaluation: [Tesseract](https://github.com/tesseract-ocr/tesseract) with
-  `ara.traineddata`, plus `editdistance`.
+  the matching `*.traineddata` (`ara`, `chi_sim`, `eng`), plus `editdistance`.
 
 Install Python dependencies:
 
@@ -60,27 +69,47 @@ pip install playwright pillow numpy opencv-python editdistance matplotlib
 
 ## Usage
 
-### 1. Generate the dataset (5 clean A4 pages by default)
+### 1. Generate the dataset (choose the language with `--lang`)
 
 ```bash
-python arabic_ocr_web_generator.py --mode document --num 5 --output ./arabic_ocr_dataset
+# Arabic (default), 5 clean A4 pages
+python ocr_web_generator.py --lang ar --mode document --num 5
+
+# Chinese, 5 clean A4 pages
+python ocr_web_generator.py --lang zh --mode document --num 5
+
+# English word cards with optional noise
+python ocr_web_generator.py --lang en --mode card --num 20
 ```
+
+The default output directory is language-aware: `./ocr_dataset_ar`,
+`./ocr_dataset_zh`, `./ocr_dataset_en` — each language keeps its own directory so
+`metadata.json` is never overwritten by another language. Override with `--output`.
 
 Other options:
 
 ```bash
-# different font / body size (pt)
-python arabic_ocr_web_generator.py --font "Simplified Arabic" --font-size 16
+# different font / body size (pt); default font is language-specific
+python ocr_web_generator.py --lang zh --font "Microsoft YaHei" --font-size 16
 
-# word cards with optional noise
-python arabic_ocr_web_generator.py --mode card --num 20
+# explicit output directory
+python ocr_web_generator.py --lang en --mode document --num 10 --output ./my_english_docs
 ```
+
+> The old command name still works — `arabic_ocr_web_generator.py` is a shim
+> that forwards to `ocr_web_generator.py` (e.g.
+> `python arabic_ocr_web_generator.py --lang zh --mode document --num 5`).
 
 ### 2. Evaluate with Tesseract
 
 ```bash
-python run_eval_tesseract.py --dataset ./arabic_ocr_dataset
+python run_eval_tesseract.py --dataset ./ocr_dataset_ar
+python run_eval_tesseract.py --dataset ./ocr_dataset_zh
+python run_eval_tesseract.py --dataset ./ocr_dataset_en
 ```
+
+The OCR language is auto-detected from each dataset's `metadata.json`
+(`ara` / `chi_sim` / `eng`); override with `--lang ar|zh|en`.
 
 Adjust the Tesseract path if it is not at the default location:
 
@@ -88,18 +117,10 @@ Adjust the Tesseract path if it is not at the default location:
 python run_eval_tesseract.py --tesseract "C:/path/to/tesseract.exe" --psm 6
 ```
 
-The report is written to `arabic_ocr_dataset/eval_report.json`. Example result on
-clean A4 pages (Tesseract `ara`, PSM 6):
+The report is written to `<dataset>/eval_report.json`.
 
-```
-Mean CER       : 0.168
-Mean WER       : 0.771
-Mean box IoU   : 0.735
-```
-
-> WER is high because Tesseract's Arabic model drops diacritics (harakat),
-> misreads some Arabic-Indic digits, and makes occasional letter errors — the
-> evaluation is designed to surface exactly such OCR weaknesses.
+> Note: for Chinese, CER is the meaningful metric — WER splits on spaces, and
+> Chinese text has no spaces between words.
 
 ## Ground truth format
 
@@ -108,17 +129,21 @@ Each `ground_truth/*.json`:
 ```json
 {
   "image": "doc_001.png",
-  "text": "التقريرُ السنويُّ للعامِ ٢٠٢٦م\nالرياضُ عاصمةُ ...",
+  "text": "人工智能正在深刻改变人们的生活与工作方式...",
   "words": [
-    {"text": "التقريرُ", "bbox": {"x": 1609.8, "y": 216, "width": 308.3, "height": 125}},
+    {"text": "人", "bbox": {"x": 180, "y": 216, "width": 74, "height": 74}},
     ...
   ],
-  "characters": [{"index": 0, "char": "ا", "x": ..., "y": ..., "width": ..., "height": ...}, ...],
-  "metadata": {"language": "Arabic", "direction": "rtl", "character_count": ..., "word_count": ...}
+  "characters": [{"index": 0, "char": "人", "x": ..., "y": ..., "width": ..., "height": ...}, ...],
+  "metadata": {"language": "Chinese", "language_code": "zh", "direction": "ltr",
+               "character_count": ..., "word_count": ...}
 }
 ```
 
 - Coordinates are **image pixels** (top-left origin), measured from the actual
   rendered image, so they align with the pixels exactly (verified ~99% ink
   coverage).
-- `words` are in **RTL reading order** (top-to-bottom, right-to-left per line).
+- `words` are in **reading order** (top-to-bottom, right-to-left per line for
+  Arabic RTL; left-to-right for Chinese/English).
+- `metadata` records `language`, `language_code` and `direction` so downstream
+  tools (e.g. the evaluator) can configure the OCR engine automatically.
